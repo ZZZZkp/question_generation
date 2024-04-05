@@ -1,0 +1,4 @@
+transformers>=3.0.0
+nltk
+torch
+datasets>=2.12.0

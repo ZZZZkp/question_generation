@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 import torch
-import nlp
+import datasets
 from transformers import T5Tokenizer, BartTokenizer, HfArgumentParser
 
 
@@ -152,8 +152,8 @@ def main():
     
     tokenizer.add_tokens(['<sep>', '<hl>'])
     
-    train_dataset = nlp.load_dataset(data_args.dataset_path, name=data_args.qg_format, split=nlp.Split.TRAIN)
-    valid_dataset = nlp.load_dataset(data_args.dataset_path, name=data_args.qg_format, split=nlp.Split.VALIDATION)
+    train_dataset = datasets.load_dataset(data_args.dataset_path, name=data_args.qg_format, split=datasets.Split.TRAIN)
+    valid_dataset = datasets.load_dataset(data_args.dataset_path, name=data_args.qg_format, split=datasets.Split.VALIDATION)
 
     processor = DataProcessor(
         tokenizer,
