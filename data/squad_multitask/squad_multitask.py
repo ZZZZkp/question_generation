@@ -23,10 +23,10 @@ import logging
 import os
 
 import nltk
+
 nltk.download('punkt')
 
-import nlp
-
+import datasets
 
 _CITATION = """\
 @article{2016arXiv160605250R,
@@ -56,7 +56,7 @@ QG_FORMATS = [
 ]
 
 
-class SquadMultitaskConfig(nlp.BuilderConfig):
+class SquadMultitaskConfig(datasets.BuilderConfig):
     """BuilderConfig for SQUAD."""
 
     def __init__(self, qg_format="highlight", **kwargs):
@@ -69,7 +69,7 @@ class SquadMultitaskConfig(nlp.BuilderConfig):
         self.qg_format = qg_format
 
 
-class SquadMultitask(nlp.GeneratorBasedBuilder):
+class SquadMultitask(datasets.GeneratorBasedBuilder):
     """SQUAD: The Stanford Question Answering Dataset. Version 1.1."""
 
     _URL = "https://rajpurkar.github.io/SQuAD-explorer/dataset/"
@@ -79,7 +79,7 @@ class SquadMultitask(nlp.GeneratorBasedBuilder):
     BUILDER_CONFIGS = [
         SquadMultitaskConfig(
             name=f"{format_}_qg_format",
-            version=nlp.Version("1.0.0", "New split API (https://tensorflow.org/datasets/splits)"),
+            version=datasets.Version("1.0.0", "New split API (https://tensorflow.org/datasets/splits)"),
             description="Plain text",
             qg_format=format_
         )
@@ -87,13 +87,13 @@ class SquadMultitask(nlp.GeneratorBasedBuilder):
     ]
 
     def _info(self):
-        return nlp.DatasetInfo(
+        return datasets.DatasetInfo(
             description=_DESCRIPTION,
-            features=nlp.Features(
+            features=datasets.Features(
                 {
-                    "source_text": nlp.Value("string"),
-                    "target_text": nlp.Value("string"),
-                    "task": nlp.Value("string"),
+                    "source_text": datasets.Value("string"),
+                    "target_text": datasets.Value("string"),
+                    "task": datasets.Value("string"),
                 }
             ),
             # No default supervised_keys (as we have to pass both question
@@ -111,24 +111,24 @@ class SquadMultitask(nlp.GeneratorBasedBuilder):
         downloaded_files = dl_manager.download_and_extract(urls_to_download)
 
         return [
-            nlp.SplitGenerator(name=nlp.Split.TRAIN, gen_kwargs={"filepath": downloaded_files["train"]}),
-            nlp.SplitGenerator(name=nlp.Split.VALIDATION, gen_kwargs={"filepath": downloaded_files["dev"]}),
+            datasets.SplitGenerator(name=datasets.Split.TRAIN, gen_kwargs={"filepath": downloaded_files["train"]}),
+            datasets.SplitGenerator(name=datasets.Split.VALIDATION, gen_kwargs={"filepath": downloaded_files["dev"]}),
         ]
-    
+
     def _get_correct_alignement(self, context, answer):
         """ Some original examples in SQuAD have indices wrong by 1 or 2 character. We test and fix this here. """
         gold_text = answer['text']
         start_idx = answer['answer_start']
         end_idx = start_idx + len(gold_text)
         if context[start_idx:end_idx] == gold_text:
-            return start_idx, end_idx       # When the gold label position is good
-        elif context[start_idx-1:end_idx-1] == gold_text:
-            return start_idx-1, end_idx-1   # When the gold label is off by one character
-        elif context[start_idx-2:end_idx-2] == gold_text:
-            return start_idx-2, end_idx-2   # When the gold label is off by two character
+            return start_idx, end_idx  # When the gold label position is good
+        elif context[start_idx - 1:end_idx - 1] == gold_text:
+            return start_idx - 1, end_idx - 1  # When the gold label is off by one character
+        elif context[start_idx - 2:end_idx - 2] == gold_text:
+            return start_idx - 2, end_idx - 2  # When the gold label is off by two character
         else:
             raise ValueError()
-    
+
     def process_qa_text(self, context, question, answer):
         ans_gen_input = f"question: {question}  context: {context}"
         ans_gen_target = f"{answer}"
@@ -136,7 +136,7 @@ class SquadMultitask(nlp.GeneratorBasedBuilder):
 
     def process_qg_text(self, context, question, answer):
         answer_text = answer['text'].strip()
-        
+
         if self.config.qg_format == "prepend":
             que_gen_input = f"answer: {answer_text}  context: {context}"
         elif self.config.qg_format == "highlight":
@@ -145,10 +145,10 @@ class SquadMultitask(nlp.GeneratorBasedBuilder):
         else:
             start_pos, end_pos = self._get_correct_alignement(context, answer)
             que_gen_input = f"answer: {answer_text} context: {context[:start_pos]} {{hl_token}} {answer_text} {{hl_token}} {context[end_pos:]}"
-        
+
         que_gen_target = f"{question}"
         return {"source_text": que_gen_input, "target_text": que_gen_target, "task": "qg"}
-    
+
     def process_e2e_qg(self, paragraph):
         source_text = f"generate questions: {paragraph['context'].strip()}"
         questions = [qas['question'].strip() for qas in paragraph['qas']]
@@ -158,7 +158,7 @@ class SquadMultitask(nlp.GeneratorBasedBuilder):
 
     def process_ans_ext(self, paragraph):
         context = paragraph['context'].strip()
-    
+
         # split into sentences
         sents = nltk.sent_tokenize(context)
 
@@ -171,7 +171,7 @@ class SquadMultitask(nlp.GeneratorBasedBuilder):
                 start, end = (prev_end + 1), (prev_end + len(sent) + 1)
             prev_end = end
             positions.append({'start': start, 'end': end})
-        
+
         # get answers
         answers = [qa['answers'][0] for qa in paragraph['qas']]
 
@@ -199,11 +199,11 @@ class SquadMultitask(nlp.GeneratorBasedBuilder):
             target_text = " {sep_token} ".join(ans) + " {sep_token}"
 
             examples.append({'source_text': input_text, "target_text": target_text, "task": "ans_ext"})
-        
+
         return examples
 
     def _generate_examples(self, filepath):
-        """This function returns the examples in the raw (text) form."""
+        """This function returns the examples in the squad_nqg (text) form."""
         logging.info("generating examples from = %s", filepath)
         count = 0
         tasks = ['qa', 'qg', 'ans_ext', 'e2e_qg']
@@ -213,17 +213,17 @@ class SquadMultitask(nlp.GeneratorBasedBuilder):
                 title = article.get("title", "").strip()
                 for paragraph in article["paragraphs"]:
                     context = paragraph["context"].strip()
-                    
+
                     if 'ans_ext' in tasks:
                         ans_ext_examples = self.process_ans_ext(paragraph)
                         for example in ans_ext_examples:
-                                yield count, example
-                                count += 1
-                    
+                            yield count, example
+                            count += 1
+
                     if 'e2e_qg' in tasks:
                         yield count, self.process_e2e_qg(paragraph)
                         count += 1
-                    
+
                     for qa in paragraph["qas"]:
                         question = qa["question"].strip()
                         id_ = qa["id"]
@@ -233,7 +233,7 @@ class SquadMultitask(nlp.GeneratorBasedBuilder):
                             if task == 'qa':
                                 yield count, self.process_qa_text(context, question, answers[0])
                                 count += 1
-                            
+
                             if task == 'qg':
                                 yield count, self.process_qg_text(context, question, qa["answers"][0])
                                 count += 1
