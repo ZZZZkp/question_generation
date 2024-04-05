@@ -49,6 +49,16 @@ class DataTrainingArguments:
         metadata={"help": "Max input length for the target text"},
     )
 
+    create_reference: Optional[bool] = field(
+        default=False,
+        metadata={"help": "If create the reference data"},
+    )
+
+    reference_file_name: Optional[str] = field(
+        default='reference_data.txt',
+        metadata={"help": "If create the reference data"},
+    )
+
 class DataProcessor:
     def __init__(self, tokenizer, model_type="t5", max_source_length=512, max_target_length=32):
         self.tokenizer = tokenizer
@@ -171,6 +181,12 @@ def main():
         valid_dataset = valid_dataset.filter(filter_qg)
     else:
         valid_dataset = valid_dataset.filter(TASK_TO_FILTER_FN[data_args.task])
+
+    if data_args.create_reference:
+        target = valid_dataset['target_text']
+        ref_path = os.path.join("data", data_args.reference_file_name)
+        with open(ref_path, 'w') as f:
+            f.write("\n".join(target))
 
     
     train_dataset = processor.process(train_dataset)
